@@ -4,6 +4,13 @@
 
 Conversational chat interface (like ChatGPT/Claude Desktop) that helps you create secure, least-privilege IAM policies through natural language.
 
+## 📚 Documentation
+
+- **[Quick Start Guide](./QUICKSTART.md)** - Get started in 15 minutes
+- **[Deployment Guide](./DEPLOYMENT.md)** - Comprehensive deployment instructions
+- **[Testing Guide](./TESTING.md)** - Testing and validation procedures
+- **[Scripts Documentation](./scripts/README.md)** - Helper scripts reference
+
 ---
 
 ## ✨ Features
