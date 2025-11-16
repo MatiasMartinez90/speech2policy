@@ -84,6 +84,28 @@ Conversational chat interface (like ChatGPT/Claude Desktop) that helps you creat
 
 ## 🚀 Deployment Guide
 
+### Quick Start (Recommended)
+
+For the easiest deployment experience, use the guided setup script:
+
+```bash
+# Make scripts executable
+chmod +x scripts/*.sh
+
+# Run complete guided setup
+./scripts/full-setup.sh
+```
+
+This interactive script will guide you through all deployment steps.
+
+### Alternative: Manual Deployment
+
+If you prefer manual control or want to understand each step:
+
+**Full deployment documentation:** See [`DEPLOYMENT.md`](./DEPLOYMENT.md)
+
+**Helper scripts:** See [`scripts/README.md`](./scripts/README.md)
+
 ### Prerequisites
 
 - AWS CLI configured (`aws configure`)
@@ -359,6 +381,33 @@ npm run dev
 - **Python**: Black formatter
 - **TypeScript**: ESLint + Prettier
 - **Terraform**: `terraform fmt`
+
+### Deployment Scripts
+
+We provide several helper scripts in the `scripts/` directory:
+
+| Script | Purpose |
+|--------|---------|
+| `full-setup.sh` | Complete guided setup (recommended for first-time) |
+| `setup-infra.sh` | Create Terraform state backend |
+| `setup-cognito.sh` | Deploy Cognito User Pool |
+| `deploy-backend.sh` | Deploy backend infrastructure |
+| `deploy-frontend.sh` | Build and deploy frontend |
+| `setup-github-secrets.sh` | Configure GitHub Actions secrets |
+
+**Example usage:**
+```bash
+# Complete deployment
+./scripts/full-setup.sh
+
+# Or step-by-step
+./scripts/setup-infra.sh
+./scripts/setup-cognito.sh
+./scripts/deploy-backend.sh
+./scripts/deploy-frontend.sh
+```
+
+See [`scripts/README.md`](./scripts/README.md) for detailed documentation.
 
 ---
 
