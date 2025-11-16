@@ -1,0 +1,77 @@
+name: Terraform Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths:
+      - '**/*.tf'
+      - '.github/workflows/terraform-validate.yml'
+
+jobs:
+  validate:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        terraform-dir:
+          - infra
+          - backend/terraform
+          - frontend/terraform/backend
+          - frontend/terraform/frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Terraform Format Check
+        working-directory: ${{ matrix.terraform-dir }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init (local backend for validation)
+        working-directory: ${{ matrix.terraform-dir }}
+        run: |
+          # Create temporary local backend for validation
+          cat > backend_override.tf <<EOF
+          terraform {
+            backend "local" {}
+          }
+          EOF
+          terraform init
+
+      - name: Terraform Validate
+        working-directory: ${{ matrix.terraform-dir }}
+        run: terraform validate
+
+      - name: Cleanup
+        working-directory: ${{ matrix.terraform-dir }}
+        if: always()
+        run: rm -f backend_override.tf
+
+  security-scan:
+    name: Security Scan (tfsec)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          soft_fail: true
+          format: sarif
+          output: tfsec-results.sarif
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: tfsec-results.sarif

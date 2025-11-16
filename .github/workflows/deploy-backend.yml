@@ -1,0 +1,73 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Backend Infrastructure
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Build Lambda Layer
+        run: |
+          cd backend/layers
+          chmod +x build-powertools-layer.sh
+          ./build-powertools-layer.sh
+
+      - name: Terraform Init
+        working-directory: backend/terraform
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: backend/terraform
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: backend/terraform
+        env:
+          TF_VAR_cognito_user_pool_id: ${{ secrets.COGNITO_USER_POOL_ID }}
+          TF_VAR_cognito_user_pool_arn: ${{ secrets.COGNITO_USER_POOL_ARN }}
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: backend/terraform
+        env:
+          TF_VAR_cognito_user_pool_id: ${{ secrets.COGNITO_USER_POOL_ID }}
+          TF_VAR_cognito_user_pool_arn: ${{ secrets.COGNITO_USER_POOL_ARN }}
+        run: terraform apply -auto-approve tfplan
+
+      - name: Output API Gateway URL
+        working-directory: backend/terraform
+        run: |
+          echo "🚀 Deployment Complete!"
+          echo "API Gateway URL:"
+          terraform output api_gateway_url

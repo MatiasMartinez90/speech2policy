@@ -1,0 +1,79 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - 'frontend/app/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy Frontend
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: frontend/app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend/app
+        run: npm ci
+
+      - name: Create env.local
+        working-directory: frontend/app
+        run: |
+          cat > .env.local <<EOF
+          NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_COGNITO_USER_POOL_ID=${{ secrets.COGNITO_USER_POOL_ID }}
+          NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID=${{ secrets.COGNITO_CLIENT_ID }}
+          NEXT_PUBLIC_COGNITO_DOMAIN=${{ secrets.COGNITO_DOMAIN }}
+          EOF
+
+      - name: Build Next.js app
+        working-directory: frontend/app
+        run: npm run build
+
+      - name: Create env.json for runtime config
+        working-directory: frontend/app
+        run: |
+          cat > out/env.json <<EOF
+          {
+            "cognitoUserPoolId": "${{ secrets.COGNITO_USER_POOL_ID }}",
+            "cognitoUserPoolWebClientId": "${{ secrets.COGNITO_CLIENT_ID }}",
+            "cognitoDomain": "${{ secrets.COGNITO_DOMAIN }}"
+          }
+          EOF
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync ./frontend/app/out s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+      - name: Deployment Success
+        run: |
+          echo "🚀 Frontend deployed successfully!"
+          echo "URL: https://${{ secrets.CLOUDFRONT_DOMAIN }}"
