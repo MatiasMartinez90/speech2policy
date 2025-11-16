@@ -18,7 +18,7 @@ export default function LandingPage() {
     try {
       const authenticated = await isAuthenticated();
       if (authenticated) {
-        router.push('/chat');
+        router.push('/dashboard');
       }
     } catch (error) {
       console.error('Error checking auth:', error);

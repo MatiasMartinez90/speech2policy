@@ -9,8 +9,8 @@ const inter = Inter({ subsets: ["latin"] });
 configureAmplify();
 
 export const metadata: Metadata = {
-  title: "Speech2Policy - AI-Powered IAM Policy Generator",
-  description: "Convert natural language to AWS IAM policies using Claude 3.5 Sonnet",
+  title: "IAM Copilot - AI-Powered IAM Management",
+  description: "Analyze, optimize, and secure your AWS IAM policies with AI",
 };
 
 export default function RootLayout({
