@@ -1,0 +1,22 @@
+{
+  "cognito_user_pool_domain": {
+    "sensitive": false,
+    "type": "string",
+    "value": "cloudacademy-prod-auth-w0porj9z"
+  },
+  "cognito_user_pool_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "us-east-1_FbLlcvGLl"
+  },
+  "cognito_user_pool_web_client_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "7k692bp886on11hdqfroo2pp44"
+  },
+  "google_identity_provider_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "Google"
+  }
+}

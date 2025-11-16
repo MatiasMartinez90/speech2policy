@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudacademy-web-apis-ingress
+  namespace: cloudacademy
+  labels:
+    app: cloudacademy-web-apis
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: api-web.cloudacademy.ar
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cloudacademy-web-apis-service
+            port:
+              number: 80

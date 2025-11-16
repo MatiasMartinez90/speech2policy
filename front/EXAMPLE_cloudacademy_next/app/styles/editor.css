@@ -1,0 +1,185 @@
+/* Headings */
+.ProseMirror h1 {
+  font-size: 2.25rem;
+  font-weight: bold;
+  line-height: 2.5rem;
+  margin: 1.5rem 0 1rem 0;
+  color: #f1f5f9;
+}
+
+.ProseMirror h2 {
+  font-size: 1.875rem;
+  font-weight: bold;
+  line-height: 2.25rem;
+  margin: 1.25rem 0 0.75rem 0;
+  color: #e2e8f0;
+}
+
+.ProseMirror h3 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  line-height: 2rem;
+  margin: 1rem 0 0.5rem 0;
+  color: #cbd5e1;
+}
+
+/* Syntax highlighting styles for code blocks */
+.ProseMirror pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: 'JetBrainsMono', 'Courier New', Courier, monospace;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.ProseMirror pre code {
+  background: none;
+  color: inherit;
+  font-size: 0.875rem;
+  padding: 0;
+}
+
+/* Syntax highlighting colors */
+.ProseMirror pre code .hljs-comment,
+.ProseMirror pre code .hljs-quote {
+  color: #64748b;
+  font-style: italic;
+}
+
+.ProseMirror pre code .hljs-keyword,
+.ProseMirror pre code .hljs-selector-tag,
+.ProseMirror pre code .hljs-subst {
+  color: #f472b6;
+}
+
+.ProseMirror pre code .hljs-number,
+.ProseMirror pre code .hljs-literal,
+.ProseMirror pre code .hljs-variable,
+.ProseMirror pre code .hljs-template-variable,
+.ProseMirror pre code .hljs-tag .hljs-attr {
+  color: #fb923c;
+}
+
+.ProseMirror pre code .hljs-string,
+.ProseMirror pre code .hljs-doctag {
+  color: #a3e635;
+}
+
+.ProseMirror pre code .hljs-title,
+.ProseMirror pre code .hljs-section,
+.ProseMirror pre code .hljs-selector-id {
+  color: #60a5fa;
+}
+
+.ProseMirror pre code .hljs-type,
+.ProseMirror pre code .hljs-class .hljs-title {
+  color: #fbbf24;
+}
+
+.ProseMirror pre code .hljs-tag,
+.ProseMirror pre code .hljs-name,
+.ProseMirror pre code .hljs-attribute {
+  color: #34d399;
+}
+
+.ProseMirror pre code .hljs-regexp,
+.ProseMirror pre code .hljs-link {
+  color: #a78bfa;
+}
+
+.ProseMirror pre code .hljs-built_in,
+.ProseMirror pre code .hljs-builtin-name {
+  color: #38bdf8;
+}
+
+/* Code inline */
+.ProseMirror code {
+  background: #1e293b;
+  color: #f472b6;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  font-family: 'JetBrainsMono', 'Courier New', Courier, monospace;
+}
+
+/* Images base */
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+/* Image alignment - Left (default) */
+.ProseMirror img[data-align="left"] {
+  display: block;
+  margin: 1rem 0;
+}
+
+/* Image alignment - Center */
+.ProseMirror img[data-align="center"] {
+  display: block;
+  margin: 1rem auto !important;
+}
+
+/* Image alignment - Right */
+.ProseMirror img[data-align="right"] {
+  display: block;
+  margin: 1rem 0 1rem auto !important;
+}
+
+/* Selected image outline */
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Tables */
+.ProseMirror table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+  overflow: hidden;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  border: 1px solid #475569;
+  padding: 0.5rem;
+  position: relative;
+  vertical-align: top;
+}
+
+.ProseMirror table th {
+  background-color: #1e293b;
+  font-weight: bold;
+  text-align: left;
+}
+
+.ProseMirror table td {
+  background-color: #0f172a;
+}
+
+/* Blockquote */
+.ProseMirror blockquote {
+  border-left: 4px solid #3b82f6;
+  padding-left: 1rem;
+  margin-left: 0;
+  font-style: italic;
+  color: #94a3b8;
+}
+
+/* Lists */
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.ProseMirror ul li,
+.ProseMirror ol li {
+  margin: 0.25rem 0;
+}

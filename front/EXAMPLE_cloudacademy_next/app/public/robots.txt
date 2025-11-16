@@ -1,0 +1,12 @@
+# robots.txt for CloudAcademy
+# https://proyectos.cloudacademy.ar
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin-panel
+Disallow: /dashboard
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://proyectos.cloudacademy.ar/sitemap.xml

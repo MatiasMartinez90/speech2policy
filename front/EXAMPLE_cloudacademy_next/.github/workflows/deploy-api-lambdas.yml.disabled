@@ -1,0 +1,114 @@
+name: Deploy API Lambda Functions
+
+on:
+  push:
+    branches: [retorno, main]
+    paths: 
+      - 'lambda/getUserProgress.py'
+      - 'lambda/requirements.txt'
+      - '.github/workflows/deploy-api-lambdas.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-getUserProgress:
+    name: "🚀 Deploy getUserProgress Lambda"
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies and package Lambda
+        working-directory: lambda
+        run: |
+          echo "📦 Creating getUserProgress deployment package..."
+          # Using simplified version without external dependencies for now
+          
+          echo "📄 Copying source code..."
+          cp getUserProgress_simple.py getUserProgress_simple.py
+          
+          echo "🗜️ Creating deployment package..."
+          zip getUserProgress.zip getUserProgress_simple.py
+          
+          echo "📊 Package size:"
+          ls -lh getUserProgress.zip
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy or Update Lambda function
+        working-directory: lambda
+        run: |
+          echo "🔍 Checking if Lambda function exists..."
+          if aws lambda get-function --function-name getUserProgress --region us-east-1 > /dev/null 2>&1; then
+            echo "♻️  Function exists, updating code..."
+            aws lambda update-function-code \
+              --function-name getUserProgress \
+              --region us-east-1 \
+              --zip-file fileb://getUserProgress.zip
+            
+            echo "⏳ Waiting for function to be updated..."
+            aws lambda wait function-updated \
+              --function-name getUserProgress \
+              --region us-east-1
+              
+            echo "⚙️ Updating environment variables..."
+            aws lambda update-function-configuration \
+              --function-name getUserProgress \
+              --region us-east-1 \
+              --handler getUserProgress_simple.lambda_handler \
+              --environment Variables="{
+                DB_HOST=${{ secrets.DB_HOST }},
+                DB_USER=${{ secrets.DB_USER }},
+                DB_PASSWORD=${{ secrets.DB_PASSWORD }},
+                DB_NAME=${{ secrets.DB_NAME }},
+                DB_PORT=${{ secrets.DB_PORT || '5432' }}
+              }"
+          else
+            echo "🆕 Function doesn't exist, will be created by Terraform"
+            echo "Creating placeholder zip for Terraform..."
+            echo "# Placeholder" > placeholder.py
+            zip getUserProgress.zip placeholder.py
+          fi
+
+      - name: Test Lambda function
+        run: |
+          echo "🧪 Testing Lambda function..."
+          aws lambda invoke \
+            --function-name getUserProgress \
+            --region us-east-1 \
+            --cli-binary-format raw-in-base64-out \
+            --payload '{"queryStringParameters": {"user_id": "e41b0d72-62bc-48af-9dff-40c2c7bb1029"}}' \
+            response.json
+          
+          echo "📊 Lambda response:"
+          cat response.json | jq .
+          
+          echo "📋 Recent logs:"
+          aws logs filter-log-events \
+            --log-group-name "/aws/lambda/getUserProgress" \
+            --region us-east-1 \
+            --start-time $(date -u -d '5 minutes ago' +%s)000 \
+            --query 'events[*].message' \
+            --output text || echo "No recent logs found (function may not exist yet)"
+
+      - name: Summary
+        run: |
+          echo "## 🎉 Lambda Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **getUserProgress** deployed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Environment variables** updated" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Test execution** completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Deploy API Gateway with Terraform" >> $GITHUB_STEP_SUMMARY
+          echo "2. Test API endpoint from frontend" >> $GITHUB_STEP_SUMMARY
+          echo "3. Add sample data to database" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,24 @@
+{
+  "name": "lambda",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "package": "npm run build && zip -r postConfirmation.zip dist/ node_modules/",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "pg": "^8.11.3",
+    "@aws-sdk/client-ses": "^3.478.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.149",
+    "@types/node": "^22.15.30",
+    "@types/pg": "^8.10.9",
+    "typescript": "^5.8.3"
+  },
+  "description": ""
+}

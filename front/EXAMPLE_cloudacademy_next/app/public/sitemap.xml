@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+  <!-- Home Page -->
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- Sign In Page -->
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/signin/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Public Course Pages (Fase 7) -->
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/courses/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Bedrock Course (authenticated) -->
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/bedrock/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Category Pages (Public facing) -->
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/rag-bedrock/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/seguridad/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/networks/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/computo/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/devops/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/databases/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://proyectos.cloudacademy.ar/challenge-principiantes/</loc>
+    <lastmod>2025-11-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Note: Admin pages, dashboard, and authenticated pages are excluded -->
+
+</urlset>

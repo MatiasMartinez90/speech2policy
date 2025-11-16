@@ -1,0 +1,10 @@
+# ========================================
+# Terraform Frontend Configuration Template
+# ========================================
+
+# Domain configuration
+# Asegúrate de tener el dominio configurado en tu DNS provider
+domain_name = "proyectos.cloudacademy.ar"
+
+# Environment (opcional - para diferenciar deployments)
+# environment = "production"

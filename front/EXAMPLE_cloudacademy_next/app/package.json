@@ -1,0 +1,53 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "npm run build:config && next dev",
+    "build": "npm run build:config && next build && next export",
+    "build:config": "esbuild next.config.ts --bundle --outfile=next.config.js --platform=node --target=es2020",
+    "analyze": "ANALYZE=true npm run build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@aws-amplify/adapter-nextjs": "^1.6.8",
+    "@aws-amplify/ui-react": "^6.11.2",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@tailwindcss/postcss": "^4.1.10",
+    "@tiptap/extension-code-block-lowlight": "^3.10.4",
+    "@tiptap/extension-color": "^3.10.4",
+    "@tiptap/extension-highlight": "^3.10.4",
+    "@tiptap/extension-image": "^3.10.1",
+    "@tiptap/extension-link": "^3.10.1",
+    "@tiptap/extension-placeholder": "^3.10.1",
+    "@tiptap/extension-table": "^3.10.1",
+    "@tiptap/extension-table-cell": "^3.10.1",
+    "@tiptap/extension-table-header": "^3.10.1",
+    "@tiptap/extension-table-row": "^3.10.1",
+    "@tiptap/extension-text-align": "^3.10.4",
+    "@tiptap/extension-text-style": "^3.10.4",
+    "@tiptap/extension-underline": "^3.10.4",
+    "@tiptap/react": "^3.10.1",
+    "@tiptap/starter-kit": "^3.10.1",
+    "aws-amplify": "^6.15.5",
+    "lowlight": "^3.3.0",
+    "next": "^13.5.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "swr": "^1.2.2",
+    "web-vitals": "^5.1.0"
+  },
+  "devDependencies": {
+    "@next/bundle-analyzer": "^16.0.3",
+    "@types/node": "17.0.19",
+    "@types/react": "^18.2.0",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "^0.14.27",
+    "eslint": "8.9.0",
+    "eslint-config-next": "12.1.0",
+    "postcss": "^8.5.5",
+    "tailwindcss": "^4.1.10",
+    "typescript": "4.5.5"
+  }
+}

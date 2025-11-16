@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fastapi-bedrock-netpol
+  namespace: cloudacademy
+  labels:
+    app: fastapi-bedrock
+spec:
+  podSelector:
+    matchLabels:
+      app: fastapi-bedrock
+  
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow traffic from traefik ingress
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: traefik-system
+    ports:
+    - protocol: TCP
+      port: 8000
+  
+  # Allow traffic from same namespace (for services)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: cloudacademy
+    ports:
+    - protocol: TCP
+      port: 8000
+  
+  # Allow health check traffic
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 8000
+  
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  
+  # Allow HTTPS traffic (for AWS APIs, Cognito, etc.)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  
+  # Allow HTTP traffic (if needed)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80

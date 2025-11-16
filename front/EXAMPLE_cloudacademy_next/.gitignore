@@ -1,0 +1,43 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+.env*.local
+.DS_Store
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform.lock.hcl
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.template
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform state backups
+terraform.tfstate.d/
+
+# AWS credentials
+.aws/
+
+# Secrets y credenciales
+**/credentials.json
+**/secrets.json
+bedrock_credentials.txt
+
+# Secrets and credentials
+.env
+.env.local
+.env.*.local
+secrets.yaml
+**/secret.yaml
+**/*secret*.yaml
+credentials.json

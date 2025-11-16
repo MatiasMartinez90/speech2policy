@@ -1,0 +1,13 @@
+# ========================================
+# Terraform API Gateway Configuration Template
+# ========================================
+
+# PostgreSQL Database Configuration (REQUIRED)
+# db_host     = "your-rds-endpoint.region.rds.amazonaws.com"
+# db_user     = "postgres"
+# db_password = "your-secure-password"
+# db_name     = "proyecto_cloudacademy"
+# db_port     = "5432"
+
+# Nota: Estos valores se deben pasar via GitHub Secrets en CI/CD
+# o definir en terraform.tfvars local (NO versionado)

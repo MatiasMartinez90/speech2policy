@@ -1,0 +1,249 @@
+name: 'Terraform API Gateway'
+
+on:
+  push:
+    branches: [retorno, main, november2025]
+    paths:
+      - 'terraform/api-gateway/**'
+      - '.github/workflows/terraform-api-gateway.yml'
+      - 'lambda/**'
+  pull_request:
+    branches: [retorno, main, november2025]
+    paths:
+      - 'terraform/api-gateway/**'
+      - '.github/workflows/terraform-api-gateway.yml'
+      - 'lambda/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  terraform:
+    name: 'API Gateway Infrastructure'
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        shell: bash
+        working-directory: terraform/api-gateway
+
+    steps:
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # Setup Terraform CLI
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.5.7
+        terraform_wrapper: false
+
+    # Setup Python for Lambda packaging
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    # Package Lambda function using Docker for AWS Lambda compatibility
+    - name: Package Lambda function
+      working-directory: lambda
+      run: |
+        echo "📦 Creating Lambda deployment package with PostgreSQL dependencies..."
+        # Remove old package to ensure fresh build
+        rm -f getUserProgress_with_deps.zip
+        rm -rf getUserProgress_package/*
+        mkdir -p getUserProgress_package
+        
+        # Use Docker to install dependencies in Lambda-compatible environment
+        docker run --rm -v "$PWD":/var/task --entrypoint="" public.ecr.aws/lambda/python:3.9 sh -c "
+          pip install psycopg2-binary -t /var/task/getUserProgress_package/ &&
+          echo 'Dependencies installed successfully'
+        "
+        
+        # Copy source code with timestamp to ensure uniqueness
+        echo "# Built at $(date)" >> getUserProgress.py
+        cp getUserProgress.py ./getUserProgress_package/
+        
+        # Create package
+        cd ./getUserProgress_package/
+        zip -r ../getUserProgress_with_deps.zip .
+        cd ..
+        
+        echo "📊 Package created:"
+        ls -lh getUserProgress_with_deps.zip
+        echo "📊 Package hash:"
+        sha256sum getUserProgress_with_deps.zip
+
+    # Code Quality & Validation Stage
+    - name: 🧹 Terraform Format Check
+      id: fmt
+      run: terraform fmt -check -recursive
+      continue-on-error: true
+
+    # Configure AWS credentials first
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: 🧹 Terraform Init
+      id: init
+      run: |
+        terraform init
+      env:
+        TF_VAR_db_host: ${{ secrets.DB_HOST }}
+        TF_VAR_db_user: ${{ secrets.DB_USER }}
+        TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        TF_VAR_db_name: ${{ secrets.DB_NAME }}
+        TF_VAR_db_port: ${{ secrets.DB_PORT }}
+
+    - name: 🧹 Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+
+    - name: 🧹 TFLint Setup
+      uses: terraform-linters/setup-tflint@v4
+      with:
+        tflint_version: v0.47.0
+
+    - name: 🧹 TFLint Run
+      run: |
+        tflint --init
+        tflint -f compact || echo "TFLint completed with warnings"
+
+    # Security & Compliance Stage
+    - name: 🔐 tfsec Security Scan
+      uses: aquasecurity/tfsec-action@v1.0.3
+      with:
+        working_directory: terraform/api-gateway
+        github_token: ${{ github.token }}
+        soft_fail: true
+
+    - name: 🔐 Checkov Security Scan
+      uses: bridgecrewio/checkov-action@master
+      with:
+        directory: terraform/api-gateway
+        soft_fail: true
+        framework: terraform
+
+    # Cost Analysis Stage (temporarily disabled to fix pipeline)
+    # - name: 💰 Setup Infracost
+    #   uses: infracost/actions/setup@v2
+    #   with:
+    #     api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+    # - name: 💰 Generate Infracost Estimate
+    #   run: |
+    #     infracost breakdown --path . \
+    #       --format json \
+    #       --out-file /tmp/infracost-base.json \
+    #       --terraform-var="db_host=${{ secrets.DB_HOST }}" \
+    #       --terraform-var="db_user=${{ secrets.DB_USER }}" \
+    #       --terraform-var="db_password=${{ secrets.DB_PASSWORD }}" \
+    #       --terraform-var="db_name=${{ secrets.DB_NAME }}" \
+    #       --terraform-var="db_port=${{ secrets.DB_PORT }}"
+
+    # - name: 💰 Post Infracost comment
+    #   if: github.event_name == 'pull_request'
+    #   run: |
+    #     infracost comment github --path=/tmp/infracost-base.json \
+    #       --repo=$GITHUB_REPOSITORY \
+    #       --github-token=${{ github.token }} \
+    #       --pull-request=${{ github.event.pull_request.number }} \
+    #       --behavior=update
+
+    # Terraform Plan Stage
+    - name: 📋 Terraform Plan
+      id: plan
+      run: |
+        terraform plan -no-color -input=false \
+          -var="db_host=${{ secrets.DB_HOST }}" \
+          -var="db_user=${{ secrets.DB_USER }}" \
+          -var="db_password=${{ secrets.DB_PASSWORD }}" \
+          -var="db_name=${{ secrets.DB_NAME }}" \
+          -var="db_port=${{ secrets.DB_PORT }}" \
+          -out=tfplan
+      continue-on-error: true
+
+    - name: 📋 Upload Plan Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraform-plan-api-gateway
+        path: terraform/api-gateway/tfplan
+        retention-days: 30
+
+    # Comment PR with plan results (temporarily disabled to fix pipeline)
+    # - name: 📋 Update Pull Request
+    #   uses: actions/github-script@v7
+    #   if: github.event_name == 'pull_request'
+    #   env:
+    #     PLAN: "${{ steps.plan.outputs.stdout }}"
+    #   with:
+    #     github-token: ${{ secrets.GITHUB_TOKEN }}
+    #     script: |
+    #       const output = `### 🏗️ Terraform Plan Results (API Gateway)
+    #       
+    #       #### 🧹 Terraform Format: \`${{ steps.fmt.outcome }}\`
+    #       #### 🧹 Terraform Initialization: \`${{ steps.init.outcome }}\`
+    #       #### 🧹 Terraform Validation: \`${{ steps.validate.outcome }}\`
+    #       #### 📋 Terraform Plan: \`${{ steps.plan.outcome }}\`
+    #       
+    #       <details><summary>📋 Show Plan</summary>
+    #       
+    #       \`\`\`terraform
+    #       ${process.env.PLAN}
+    #       \`\`\`
+    #       
+    #       </details>
+    #       
+    #       **Pusher**: @${{ github.actor }}
+    #       **Action**: ${{ github.event_name }}
+    #       **Working Directory**: \`terraform/api-gateway\``;
+    #       
+    #       github.rest.issues.createComment({
+    #         issue_number: context.issue.number,
+    #         owner: context.repo.owner,
+    #         repo: context.repo.repo,
+    #         body: output
+    #       });
+
+    # Terraform Apply Stage (only on push to main branches)
+    - name: 🚀 Terraform Apply
+      if: github.ref == 'refs/heads/retorno' || github.ref == 'refs/heads/main'
+      run: |
+        terraform apply -auto-approve tfplan
+      env:
+        TF_VAR_db_host: ${{ secrets.DB_HOST }}
+        TF_VAR_db_user: ${{ secrets.DB_USER }}
+        TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        TF_VAR_db_name: ${{ secrets.DB_NAME }}
+        TF_VAR_db_port: ${{ secrets.DB_PORT }}
+
+    # Save Terraform State
+    - name: 📊 Upload State Artifact
+      if: github.ref == 'refs/heads/retorno' || github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraform-state-api-gateway
+        path: terraform/api-gateway/terraform.tfstate
+        retention-days: 90
+
+    # Output results
+    - name: 📊 Show Outputs
+      if: github.ref == 'refs/heads/retorno' || github.ref == 'refs/heads/main'
+      run: |
+        echo "## 🎉 API Gateway Deployment Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📍 Endpoints Created:" >> $GITHUB_STEP_SUMMARY
+        echo "- **API Gateway URL**: $(terraform output -raw api_gateway_url)" >> $GITHUB_STEP_SUMMARY
+        echo "- **getUserProgress**: $(terraform output -raw get_user_progress_endpoint)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Resources:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Lambda Function**: $(terraform output -raw lambda_function_name)" >> $GITHUB_STEP_SUMMARY
+        echo "- **API Gateway ID**: $(terraform output -raw api_gateway_id)" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,74 @@
+name: Build and Deploy to S3
+on:
+  push:
+    branches:
+      - bedrock1
+      - vpc
+      - retorno
+      - november2025
+      - agent-fusion
+    paths:
+      - 'app/**'
+      - 'cloudfrontfunction/**'
+      - '.github/workflows/deploy-nextjs.yml'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          
+      - name: Install dependencies
+        run: |
+          cd app
+          npm install
+          
+      - name: Set environment variables
+        run: |
+          cd app
+          echo "NEXT_PUBLIC_WEB_API_URL=${{ secrets.NEXT_PUBLIC_WEB_API_URL }}" >> .env.local
+          echo "NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}" >> .env.local
+          
+      - name: Build static site
+        run: |
+          cd app
+          npm run build
+          
+      - name: Crear env.json
+        run: |
+          echo '{
+            "cognitoUserPoolId": "${{ secrets.COGNITO_USER_POOL_ID }}",
+            "cognitoUserPoolWebClientId": "${{ secrets.COGNITO_CLIENT_ID }}",
+            "cognitoDomain": "${{ secrets.COGNITO_DOMAIN }}",
+            "turnstileSiteKey": "${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}"
+          }' > ./app/out/env.json
+
+      - name: Verificar env.json
+        run: |
+          echo "Contenido de env.json:"
+          cat ./app/out/env.json
+          echo "---"
+          ls -la ./app/out/ | grep env.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          
+      - name: Deploy to S3
+        run: aws s3 sync ./app/out s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"

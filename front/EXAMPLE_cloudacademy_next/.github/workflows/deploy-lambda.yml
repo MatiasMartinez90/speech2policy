@@ -1,0 +1,118 @@
+name: Deploy Lambda PostConfirmationFn
+
+on:
+  push:
+    branches: [retorno, vpc]
+    paths: 
+      - 'lambda/**'
+      - '.github/workflows/deploy-lambda.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-lambda:
+    name: "🚀 Deploy Python Lambda"
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies and package Lambda
+        working-directory: lambda
+        run: |
+          echo "📦 Installing Python dependencies..."
+          pip install -r requirements.txt -t package/
+          
+          echo "📄 Copying source code..."
+          cp postConfirmation.py package/
+          
+          echo "🗜️ Creating deployment package..."
+          cd package
+          zip -r ../postConfirmation.zip .
+          cd ..
+          
+          echo "📊 Package size:"
+          ls -lh postConfirmation.zip
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Update Lambda function code
+        working-directory: lambda
+        run: |
+          echo "🚀 Deploying Lambda function..."
+          aws lambda update-function-code \
+            --function-name PostConfirmationFn \
+            --region us-east-1 \
+            --zip-file fileb://postConfirmation.zip
+          
+          echo "⏳ Waiting for function to be updated..."
+          aws lambda wait function-updated \
+            --function-name PostConfirmationFn \
+            --region us-east-1
+
+      - name: Update Lambda environment variables
+        run: |
+          echo "⚙️ Updating Lambda environment variables..."
+          aws lambda update-function-configuration \
+            --function-name PostConfirmationFn \
+            --region us-east-1 \
+            --environment Variables="{
+              DB_HOST=${{ secrets.DB_HOST }},
+              DB_USER=${{ secrets.DB_USER }},
+              DB_PASSWORD=${{ secrets.DB_PASSWORD }},
+              DB_NAME=${{ secrets.DB_NAME }},
+              DB_PORT=${{ secrets.DB_PORT || '5432' }},
+              FROM_EMAIL=${{ secrets.FROM_EMAIL }}
+            }"
+
+      - name: Test Lambda function
+        run: |
+          echo "🧪 Testing Lambda function..."
+          aws lambda invoke \
+            --function-name PostConfirmationFn \
+            --region us-east-1 \
+            --cli-binary-format raw-in-base64-out \
+            --payload '{
+              "triggerSource": "PostConfirmation_ConfirmSignUp",
+              "userName": "test-user-123",
+              "request": {
+                "userAttributes": {
+                  "email": "test@example.com",
+                  "name": "Test User"
+                }
+              }
+            }' \
+            response.json
+          
+          echo "📊 Lambda response:"
+          cat response.json
+          
+          echo "📋 Recent logs:"
+          aws logs filter-log-events \
+            --log-group-name "/aws/lambda/PostConfirmationFn" \
+            --region us-east-1 \
+            --start-time $(date -d '5 minutes ago' +%s)000 \
+            --query 'events[*].message' \
+            --output text || echo "No recent logs found"
+
+      - name: Summary
+        run: |
+          echo "## 🎉 Lambda Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **PostConfirmationFn** deployed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Environment variables** updated" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Test execution** completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Test user registration with Google OAuth" >> $GITHUB_STEP_SUMMARY
+          echo "2. Check PostgreSQL for new user records" >> $GITHUB_STEP_SUMMARY
+          echo "3. Verify welcome email delivery" >> $GITHUB_STEP_SUMMARY

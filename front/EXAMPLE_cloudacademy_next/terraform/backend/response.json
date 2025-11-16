@@ -1,0 +1,1 @@
+{"triggerSource": "PostConfirmation_ConfirmSignUp", "userName": "test-user-123", "request": {"userAttributes": {"email": "test@example.com", "name": "Test User"}}}
