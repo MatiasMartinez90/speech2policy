@@ -1,0 +1,309 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║           CLOUDACADEMY BACKEND - USER IDENTIFICATION & FIELDS SUMMARY          ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 1. HOW USERS ARE IDENTIFIED                                                   │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+JWT Token (from Cognito)
+        ↓
+API Gateway Authorizer validates JWT
+        ↓
+Extracts claims: event.requestContext.authorizer.claims
+        ↓
+Lambda reads one of:
+   - claims.get('email')              ← tutor-handler, progress-handler
+   - claims.get('cognito:username')   ← admin-handler, sections-handler, upload-handler
+        ↓
+Stores as user_id in DynamoDB
+
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 2. USER IDENTIFIER BY HANDLER                                                 │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+TUTOR HANDLER:
+  User ID: email (e.g., user@example.com)
+  Location: /lambdas/tutor-handler/lambda_function.py:106
+  Code: email = claims.get('email')
+  
+PROGRESS HANDLER:
+  User ID: email (e.g., user@example.com)
+  Location: /lambdas/progress-handler/lambda_function.py:82
+  Code: email = claims.get('email')
+  
+ADMIN HANDLER:
+  User ID: cognito:username (e.g., Google_111137626603562904354)
+  Location: /lambdas/admin-handler/lambda_function.py:99
+  Code: username = claims.get('cognito:username')
+  Reason: Required for cognito.admin_list_groups_for_user()
+  
+SECTIONS HANDLER:
+  User ID: cognito:username (e.g., Google_111137626603562904354)
+  Location: /lambdas/sections-handler/lambda_function.py:106
+  Code: username = claims.get('cognito:username')
+  Reason: Required for cognito.admin_list_groups_for_user()
+  
+UPLOAD HANDLER:
+  User ID: cognito:username (e.g., Google_111137626603562904354)
+  Location: /lambdas/upload-handler/lambda_function.py:98
+  Code: username = claims.get('cognito:username')
+  Reason: Required for cognito.admin_list_groups_for_user()
+
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 3. USER FIELDS CURRENTLY USED                                                 │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+FROM JWT CLAIMS:
+  ✓ email              - Email address
+  ✓ cognito:username   - Unique Cognito username
+  ✓ sub                - Subject (Cognito ID) [NOT USED]
+  ✓ aud                - Audience [NOT USED]
+  ✓ iss                - Issuer [NOT USED]
+  
+FROM REQUEST CONTEXT:
+  ✓ sourceIp           - Source IP (for anonymous users)
+  
+FROM COGNITO API:
+  ✓ Groups             - List of user groups (e.g., "Admins")
+
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 4. OPTIONAL USER FIELDS (Available but NOT currently used)                    │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+  □ name                    - Full name
+  □ picture                 - Profile picture URL
+  □ given_name              - First name
+  □ family_name             - Last name
+  □ phone_number            - Phone number
+  □ phone_number_verified   - Phone verification status
+  □ email_verified          - Email verification status
+  □ locale                  - User locale/language
+  □ updated_at              - Profile update timestamp
+
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 5. USER IDENTIFICATION BY OPERATION TYPE                                      │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+ASKING A QUESTION:
+  POST /api/tutor/ask
+  User ID: email
+  Tables: UserProgress, TutorSessions, UserUsage
+  
+VALIDATING CHECKPOINT:
+  POST /api/tutor/validate
+  User ID: email
+  Tables: UserProgress, UserUsage
+  
+GETTING HINTS:
+  GET /api/tutor/hint
+  User ID: email
+  Tables: UserProgress, UserUsage
+  
+VIEWING PROGRESS:
+  GET /api/tutor/progress
+  User ID: email
+  Tables: UserProgress
+  
+ADMIN OPERATIONS:
+  POST/PUT/DELETE /api/admin/courses
+  User ID: cognito:username
+  Verification: cognito.admin_list_groups_for_user() → must be in "Admins" group
+
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 6. DATA STORED BY TABLE                                                       │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+TABLE: UserProgress
+  PK: USER#{email}
+  SK: COURSE#{course_id}
+  
+  Fields:
+    • user_id                           [email]
+    • course_id                         [string]
+    • current_section                   [int]
+    • started_at                        [ISO timestamp]
+    • last_activity                     [ISO timestamp]
+    • checkpoints_completed             [Map]
+      └─ '{section_id}': {
+           ├─ score              [Decimal 0-100]
+           ├─ passed             [bool]
+           ├─ completed_at       [ISO timestamp]
+           └─ attempts           [int]
+         }
+    • total_checkpoints                 [int]
+    • checkpoints_passed                [int]
+    • hints_used                        [Map]
+      └─ '{section_id}': [level_1, level_2, ...]
+
+
+TABLE: TutorSessions
+  PK: SESSION#{session_id}
+  SK: TIMESTAMP#{timestamp}
+  TTL: 30 days
+  
+  Fields:
+    • user_id                           [email or anon_IP]
+    • course_id                         [string]
+    • section_id                        [int]
+    • message_type                      [question|checkpoint|hint]
+    • user_message                      [string]
+    • assistant_response                [string, optional]
+    • timestamp                         [ISO timestamp]
+    • ttl                               [Unix epoch]
+
+
+TABLE: UserUsage
+  PK: user_id (email or anon_IP)
+  SK: period (TOTAL | YYYY-MM-DD | YYYY-MM-DD-HH)
+  TTL: 7 days (except for TOTAL)
+  
+  Fields:
+    • count                             [int] - Total requests in period
+    • question_count                    [int] - /api/tutor/ask
+    • checkpoint_count                  [int] - /api/tutor/validate
+    • hint_count                        [int] - /api/tutor/hint
+    • last_request                      [ISO timestamp]
+    • ttl                               [Unix epoch]
+
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 7. RATE LIMITING CONFIGURATION                                                │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+User Type: ANONYMOUS
+  Identifier: anon_{sourceIp}
+  Total limit:     1 request
+  Daily limit:     1 request
+  Hourly limit:    1 request
+  Checkpoints:     0 (BLOCKED)
+  Hints:           0 (BLOCKED)
+
+User Type: AUTHENTICATED
+  Identifier: email
+  Total limit:     Unlimited
+  Daily limit:     50 requests
+  Hourly limit:    10 requests
+  Checkpoints:     20/day
+  Hints:           15/day
+
+User Type: PREMIUM
+  Identifier: email
+  Total limit:     Unlimited
+  Daily limit:     200 requests
+  Hourly limit:    50 requests
+  Checkpoints:     100/day
+  Hints:           50/day
+
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 8. KEY INCONSISTENCY TO BE AWARE OF                                           │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+CRITICAL DIFFERENCE:
+
+  tutor-handler & progress-handler:
+    Use: claims.get('email')
+    Example: "user@example.com"
+    
+  admin-handler, sections-handler, upload-handler:
+    Use: claims.get('cognito:username')
+    Example: "Google_111137626603562904354"
+    
+REASON:
+  Cognito's admin_list_groups_for_user() API requires the Username field,
+  not the email address. The username is stable but email can be missing
+  for some OAuth providers.
+
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 9. COMPLETE USER IDENTIFICATION FLOW                                          │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+1. User logs in via Google OAuth
+   ↓
+2. Cognito issues JWT token with claims:
+   - email: "user@example.com"
+   - cognito:username: "Google_111137626603562904354"
+   - sub: "unique-cognito-id"
+   ↓
+3. Frontend sends request with: Authorization: Bearer <JWT>
+   ↓
+4. API Gateway Authorizer:
+   - Validates JWT signature
+   - Extracts claims
+   - Adds to event.requestContext.authorizer.claims
+   ↓
+5. Lambda Handler receives event:
+   claims = event.get('requestContext', {}).get('authorizer', {}).get('claims', {})
+   ↓
+6. Extract user identifier:
+   IF tutor/progress handler:
+     user_id = claims.get('email')
+   ELSE (admin/sections/upload):
+     user_id = claims.get('cognito:username')
+   ↓
+7. Use user_id for:
+   - PK in DynamoDB: USER#{user_id}
+   - Rate limiting: UserUsage table
+   - Session tracking: TutorSessions table
+   ↓
+8. All subsequent queries use user_id as identifier
+
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 10. FIELDS SUMMARY TABLE                                                      │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+Field                    | Type      | Source          | Used By
+─────────────────────────┼───────────┼─────────────────┼──────────────────────────
+email                    | string    | JWT claim       | tutor, progress handlers
+cognito:username         | string    | JWT claim       | admin, sections, upload
+sub                      | string    | JWT claim       | (UNUSED)
+sourceIp                 | string    | requestContext  | anonymous users
+groups                   | array     | Cognito API     | admin verification
+name                     | string    | JWT claim       | (AVAILABLE, UNUSED)
+picture                  | string    | JWT claim       | (AVAILABLE, UNUSED)
+phone_number             | string    | JWT claim       | (AVAILABLE, UNUSED)
+email_verified           | bool      | JWT claim       | (AVAILABLE, UNUSED)
+updated_at               | timestamp | JWT claim       | (AVAILABLE, UNUSED)
+
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ 11. RECOMMENDATIONS FOR FUTURE ENHANCEMENTS                                   │
+└────────────────────────────────────────────────────────────────────────────────┘
+
+1. CREATE UserProfile TABLE:
+   - Centralize user metadata
+   - Store: email, name, picture, cognito_username, created_at
+   - Update on every login
+
+2. UNIFY USER IDENTIFICATION:
+   - Decide between email vs cognito:username
+   - Use consistently across all handlers
+   - Ensure backwards compatibility
+
+3. ADD OPTIONAL FIELDS TO PROFILES:
+   - name (from claims.get('name'))
+   - picture (from claims.get('picture'))
+   - locale (from claims.get('locale'))
+
+4. TRACK USER ANALYTICS:
+   - total_courses_started
+   - total_courses_completed
+   - total_checkpoints_passed
+   - total_hints_used
+   - last_login
+
+5. IMPLEMENT USER PREFERENCES:
+   - language_preference
+   - notification_settings
+   - dark_mode_enabled
+   - etc.
+
+═══════════════════════════════════════════════════════════════════════════════════

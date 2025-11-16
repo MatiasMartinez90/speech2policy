@@ -1,0 +1,15 @@
+{
+  "httpMethod": "POST",
+  "path": "/api/tutor/ask",
+  "body": "{\"course_id\":\"image-gen-bedrock\",\"section_id\":0,\"question\":\"¿Qué es API Gateway y para qué sirve?\",\"session_id\":\"test-session-123\"}",
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "email": "test@example.com"
+      }
+    },
+    "identity": {
+      "sourceIp": "192.168.1.1"
+    }
+  }
+}

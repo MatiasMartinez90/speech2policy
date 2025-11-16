@@ -1,0 +1,442 @@
+================================================================================
+        CLOUDACADEMY TUTOR IA BACKEND - VISUAL SUMMARY
+================================================================================
+
+IMPORTANTE: NO USA POSTGRESQL - USA DYNAMODB EXCLUSIVAMENTE
+
+================================================================================
+ARQUITECTURA GENERAL
+================================================================================
+
+   ┌─────────────────────────────────────────────┐
+   │         FRONTEND (Next.js)                  │
+   │  https://proyectos.cloudacademy.ar          │
+   └──────────────────────┬──────────────────────┘
+                          │ HTTPS + JWT Token
+                          ▼
+   ┌─────────────────────────────────────────────┐
+   │       COGNITO USER POOL (Autenticación)     │
+   │  us-east-1_FbLlcvGLl                        │
+   │  - Gestiona usuarios, emails, contraseñas   │
+   │  - Genera JWT tokens con claims             │
+   │  - Organiza grupos: Admins, Premium         │
+   └──────────────────────┬──────────────────────┘
+                          │ JWT con claims
+                          ▼
+   ┌─────────────────────────────────────────────┐
+   │       API GATEWAY (REST API)                │
+   │  https://xxx.execute-api.us-east-1.amaz..  │
+   │  - Validates JWT tokens                     │
+   │  - Routes requests to Lambda                │
+   │  - Public + Protected endpoints              │
+   └──────────────┬───────────────┬──────────────┘
+                  │               │
+        ┌─────────┴───┐     ┌─────┴──────┐
+        ▼             ▼     ▼            ▼
+   ┌────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+   │ Tutor  │ │ Courses  │ │ Progress │ │ Admin    │
+   │Handler │ │ Handler  │ │ Handler  │ │ Handler  │
+   │ (467L) │ │ (424L)   │ │ (232L)   │ │ (429L)   │
+   └────┬───┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
+        │          │            │            │
+        │      ┌───┴────────────┴────────┐   │
+        │      ▼                         ▼   ▼
+        │   DynamoDB (Base de Datos)  S3 (Imágenes)
+        │   - CourseCatalog
+        │   - UserProgress
+        │   - TutorSessions
+        │   - UserUsage
+        │
+        ▼
+   Amazon Bedrock
+   - Claude 3.5 Sonnet
+   (Tutor IA)
+
+================================================================================
+FUNCIONES LAMBDA (6 TOTAL)
+================================================================================
+
+1. TUTOR-HANDLER (Principal - 467 líneas)
+   ├─ POST /api/tutor/ask          → Preguntas libres
+   ├─ POST /api/tutor/validate     → Validar respuestas checkpoint
+   └─ GET /api/tutor/hint          → Pistas progresivas (3 niveles)
+   
+   Recursos: Timeout 60s, Memory 512 MB
+   Dependencias: Bedrock, DynamoDB, Rate Limiter
+
+2. COURSES-HANDLER (Lectura - 424 líneas)
+   ├─ GET /api/stats               → Estadísticas globales
+   ├─ GET /api/courses             → Listar cursos
+   ├─ GET /api/courses/{id}        → Detalle curso
+   └─ GET /api/courses/{id}/sections/{id} → Contenido sección
+   
+   Recursos: Timeout 30s, Memory 256 MB
+   Acceso: PÚBLICO (sin autenticación)
+
+3. PROGRESS-HANDLER (Progreso - 232 líneas)
+   └─ GET /api/tutor/progress?course_id=X → Progreso del usuario
+   
+   Recursos: Timeout 30s, Memory 256 MB
+   Requiere: JWT válido (Cognito)
+
+4. ADMIN-HANDLER (CRUD - 429 líneas)
+   ├─ POST /api/admin/courses           → Crear curso
+   ├─ PUT /api/admin/courses/{id}       → Editar curso
+   └─ DELETE /api/admin/courses/{id}    → Eliminar curso
+   
+   Recursos: Timeout 30s, Memory 256 MB
+   Requiere: JWT + grupo "Admins"
+
+5. SECTIONS-HANDLER (Editor secciones - 518 líneas)
+   ├─ POST /api/admin/sections          → Crear sección
+   ├─ PUT /api/admin/sections/{id}      → Editar sección
+   ├─ GET /api/admin/sections/{courseId} → Listar secciones
+   └─ DELETE /api/admin/sections/{id}   → Eliminar sección
+   
+   Recursos: Timeout 30s, Memory 256 MB
+
+6. UPLOAD-HANDLER (S3 presigned URLs - 335 líneas)
+   └─ Genera URLs para upload de imágenes
+   
+   Recursos: Timeout 30s, Memory 256 MB
+
+================================================================================
+DYNAMODB TABLES (BASE DE DATOS PRINCIPAL)
+================================================================================
+
+┌──────────────────────────────────────────────────────────────┐
+│ TABLA 1: CourseCatalog (Metadata de cursos)                  │
+├──────────────────────────────────────────────────────────────┤
+│ PK: COURSE#{course_id}                                       │
+│ SK: METADATA | SECTION#{section_id}                          │
+│ Billing: ON-DEMAND (pagas solo por lo que usas)              │
+│                                                              │
+│ Items:                                                       │
+│ - Metadata: nombre, descripción, categoría, dificultad       │
+│ - Secciones: contenido, objetivos, checkpoints, pistas       │
+│ - Errores comunes: code, cause, solution                     │
+│ - Personalidad del tutor: estilo, emojis, tono              │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│ TABLA 2: UserProgress (Progreso de usuarios)                 │
+├──────────────────────────────────────────────────────────────┤
+│ PK: USER#{email}                                             │
+│ SK: COURSE#{course_id}                                       │
+│ GSI: course_id (para queries por curso)                      │
+│ Billing: ON-DEMAND                                           │
+│                                                              │
+│ Items:                                                       │
+│ - Secciones completadas: [0, 1, 2]                           │
+│ - Scores de checkpoints: {0: 100, 1: 85}                     │
+│ - Preguntas totales, pistas usadas, tiempo promedio          │
+│ - Timestamps: started_at, last_accessed_at, completed_at     │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│ TABLA 3: TutorSessions (Historial de conversaciones)         │
+├──────────────────────────────────────────────────────────────┤
+│ PK: SESSION#{session_id}                                     │
+│ SK: TIMESTAMP#{iso_timestamp}                                │
+│ TTL: 30 días (auto-delete)                                   │
+│ Billing: ON-DEMAND                                           │
+│                                                              │
+│ Items:                                                       │
+│ - user_email, course_id, section_id                          │
+│ - user_question, ai_response, response_type                  │
+│ - tokens_used, latency_ms                                    │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│ TABLA 4: UserUsage (Rate limiting y tracking)                │
+├──────────────────────────────────────────────────────────────┤
+│ PK: user_id (email o anon_IP)                                │
+│ SK: period (YYYY-MM-DD-HH o YYYY-MM-DD o TOTAL)              │
+│ TTL: 7 días                                                  │
+│ Billing: ON-DEMAND                                           │
+│                                                              │
+│ Rate Limits:                                                 │
+│ - Anónimos: 1 pregunta TOTAL, sin checkpoints ni pistas       │
+│ - Autenticados: 50/día, 10/hora, 20 checkpoints/día          │
+│ - Premium: 200/día, 50/hora, 100 checkpoints/día             │
+└──────────────────────────────────────────────────────────────┘
+
+================================================================================
+COGNITO & AUTENTICACIÓN
+================================================================================
+
+USER POOL EXISTENTE (Reutilizado del frontend)
+├─ User Pool ID: us-east-1_FbLlcvGLl
+├─ ARN: arn:aws:cognito-idp:us-east-1:982081083386:userpool/us-east-1_FbLlcvGLl
+├─ Client ID: 7k692bp886on11hdqfroo2pp44
+├─ Domain: cloudacademy-prod-auth-w0porj9z
+├─ Región: us-east-1
+│
+├─ GRUPOS CONFIGURADOS:
+│  ├─ Admins (matias.martinez90@gmail.com)
+│  ├─ Premium (vacío - para futuro)
+│  └─ us-east-1_FbLlcvGLl_Google (Google OAuth)
+│
+└─ FLUJO DE AUTENTICACIÓN:
+   1. Usuario se registra/login en Cognito
+   2. Cognito retorna JWT token con claims
+   3. Frontend envía token en header: Authorization: Bearer {token}
+   4. API Gateway valida token contra Cognito
+   5. Si válido, agrega claims a requestContext de Lambda
+   6. Lambda extrae user_id del JWT: email = claims['email']
+   7. Lambda usa user_id para acceder a DynamoDB
+
+NO HAY TRIGGER DE LAMBDA PARA SINCRONIZAR CON POSTGRESQL
+- Razón: No se usa PostgreSQL, se usa DynamoDB
+- Los datos se guardan directamente en DynamoDB en el primer acceso
+
+================================================================================
+FLUJO DE DATOS - EJEMPLO: USUARIO RESPONDE PREGUNTA
+================================================================================
+
+1. Usuario autenticado hace pregunta sobre un curso
+   └─ Request: POST /api/tutor/ask
+      Headers: Authorization: Bearer {jwt_token}
+      Body: {
+        "course_id": "image-gen-bedrock",
+        "section_id": 2,
+        "question": "¿Cómo configuro el bucket S3?"
+      }
+
+2. API Gateway valida JWT
+   └─ Valida token contra Cognito User Pool
+   └─ Si válido, agrega claims a requestContext
+
+3. Invoca tutor-handler Lambda
+   └─ Extrae user_id: "maria@example.com"
+   └─ Verifica rate limits en UserUsage table
+   └─ Obtiene contexto de curso en CourseCatalog table
+
+4. Envía pregunta a Claude (Bedrock)
+   └─ System prompt: personalidad del tutor + contexto del curso
+   └─ User prompt: pregunta del usuario
+   └─ Temperature: 0.7, max_tokens: 2000
+
+5. Claude responde
+   └─ Response: "Para configurar S3 debes crear un bucket..."
+
+6. Guarda sesión en TutorSessions
+   └─ PK: SESSION#maria@example.com#s123
+   └─ SK: TIMESTAMP#2025-11-06T14:30:00Z
+   └─ Items: question, response, tokens_used, latency_ms
+
+7. Actualiza UserProgress (si es validación de checkpoint)
+   └─ PK: USER#maria@example.com
+   └─ SK: COURSE#image-gen-bedrock
+   └─ Incrementa contadores y scores
+
+8. Retorna respuesta al frontend
+   └─ Response: {
+        "answer": "Para configurar S3 debes...",
+        "tokens_used": 142,
+        "stop_reason": "end_turn"
+      }
+
+================================================================================
+INFRAESTRUCTURA COMO CÓDIGO (TERRAFORM)
+================================================================================
+
+ARCHIVOS:
+├─ provider.tf (1 archivo)
+│  └─ AWS provider, region us-east-1
+│
+├─ variables.tf (69 líneas)
+│  ├─ aws_region: us-east-1
+│  ├─ cognito_user_pool_arn
+│  ├─ cognito_user_pool_id
+│  ├─ bedrock_model_id
+│  └─ TTL configuration
+│
+├─ dynamodb.tf (197 líneas)
+│  ├─ CourseCatalog table
+│  ├─ UserProgress table + GSI
+│  ├─ TutorSessions table + TTL
+│  └─ UserUsage table + TTL
+│
+├─ lambda.tf (323 líneas)
+│  ├─ 6 funciones Lambda
+│  ├─ Environment variables
+│  ├─ CloudWatch Log Groups
+│  └─ Archive files para empaquetamiento
+│
+├─ api-gateway.tf (1,200+ líneas)
+│  ├─ REST API
+│  ├─ Cognito Authorizer
+│  ├─ Resources: /api, /api/tutor, /api/courses, /api/admin
+│  ├─ Methods: GET, POST, PUT, DELETE, OPTIONS
+│  ├─ Integrations: AWS_PROXY (Lambda)
+│  └─ CORS configuration
+│
+├─ iam.tf (291 líneas)
+│  ├─ 6 IAM roles (uno por Lambda)
+│  ├─ Policies:
+│  │  ├─ CloudWatch Logs (logging)
+│  │  ├─ DynamoDB (GetItem, PutItem, UpdateItem, Query)
+│  │  ├─ Bedrock (InvokeModel)
+│  │  ├─ S3 (GetObject, PutObject, ListBucket)
+│  │  └─ Cognito (AdminGetUser, AdminListGroupsForUser)
+│  └─ Trust relationships
+│
+├─ s3.tf (183 líneas)
+│  ├─ S3 bucket: cloudacademy-course-images-{account_id}
+│  ├─ Versioning: Enabled
+│  ├─ Encryption: AES-256
+│  ├─ CORS: Configured
+│  └─ Lifecycle: Auto-delete old versions
+│
+├─ outputs.tf (109 líneas)
+│  ├─ DynamoDB table names
+│  ├─ Cognito info
+│  ├─ Lambda environment variables
+│  └─ Deployment summary
+│
+└─ .terraform/
+   └─ terraform state files (tfstate, backup, plan)
+
+TOTAL DE RECURSOS: 50+ recursos AWS
+
+CÓMO DESPLEGAR:
+$ cd terraform
+$ terraform init
+$ terraform plan
+$ terraform apply
+
+ESTADO: Completamente desplegado en AWS account 982081083386
+
+================================================================================
+SEGURIDAD & ENCRIPTACIÓN
+================================================================================
+
+COGNITO:
+└─ Manejo de contraseñas: Hash seguro (bcrypt)
+└─ JWT Tokens: Firmados y verificables
+└─ Google OAuth: Integrado y configurado
+
+API GATEWAY:
+└─ Authorization: Cognito User Pools authorizer
+└─ Validación de JWT en cada request protegido
+└─ CORS: Configurado para proyectos.cloudacademy.ar
+
+DYNAMODB:
+└─ Encryption: AWS-managed encryption (SSE-256)
+└─ Backups: Point-in-time recovery (PITR) habilitado
+└─ TTL: Limpieza automática de datos sensibles
+└─ Billing: ON-DEMAND (sin servidores vulnerables)
+
+S3:
+└─ Encryption: SSE-AES-256 por defecto
+└─ Public Access Block: Habilitado (seguridad)
+└─ CORS: Configurado para acceso desde frontend
+
+IAM:
+└─ Least privilege: Cada Lambda solo tiene permisos necesarios
+└─ Roles específicos: Uno por Lambda
+└─ No hay credenciales hardcodeadas
+
+================================================================================
+COSTOS ESTIMADOS (100 usuarios activos/mes)
+================================================================================
+
+DynamoDB:
+├─ Escrituras: ~$0.69/millón
+├─ Lecturas: ~$0.14/millón
+└─ TOTAL: ~$1.38/mes
+
+Lambda:
+├─ Invocaciones: ~$0.20/millón
+├─ Compute time: ~$0.0000166667/GB-segundo
+└─ TOTAL: ~$5.20/mes
+
+API Gateway:
+├─ Requests: ~$3.50/millón
+└─ TOTAL: ~$0.35/mes
+
+Bedrock (Claude):
+├─ Input tokens: ~$0.003/1K tokens
+├─ Output tokens: ~$0.015/1K tokens
+└─ TOTAL: ~$67.50/mes (variable según uso)
+
+S3:
+├─ Storage: ~$0.023/GB
+└─ TOTAL: ~$1.12/mes
+
+TOTAL ESTIMADO: ~$75.57/mes (~$0.76 por usuario)
+
+================================================================================
+COMPARACIÓN: DYNAMODB vs POSTGRESQL
+================================================================================
+
+DYNAMODB (ELEGIDO):
+✅ Escalable automáticamente
+✅ On-demand pricing (sin costo mínimo)
+✅ Serverless (no hay servidores que gestionar)
+✅ Latencia: millisegundos
+✅ Point-in-time recovery
+✅ TTL para limpieza automática
+✅ AWS-managed encryption
+├─ Queries limitadas (sin SQL completo)
+├─ Joins no soportados (se resuelve con diseño)
+└─ Schema semi-flexible (evolution friendly)
+
+POSTGRESQL (DESCARTADO):
+❌ Requiere RDS instance (costo fijo 24/7)
+❌ Gestión de backups más complicada
+❌ Escalabilidad manual
+❌ Requiere AWS Lambda trigger (complejidad)
+✅ SQL completo
+✅ Joins nativos
+✅ Relaciones complejas
+✅ ACID garantizado
+
+CONCLUSIÓN: Para este caso de uso (progreso de usuarios + catálogo), 
+DynamoDB es mejor opción. Es más barato, más fácil, y más escalable.
+
+================================================================================
+DOCUMENTACIÓN IMPORTANTE
+================================================================================
+
+Directorio: /Users/matiasmartinez/Documents/repos/cloudacademy-tutor-backend/
+
+├─ README.md (317 líneas)
+│  └─ Descripción general, quick start, endpoints
+│
+├─ docs/ARCHITECTURE.md (Master document)
+│  └─ Arquitectura completa, modelo de datos, plan de implementación
+│
+├─ docs/COGNITO_CONFIG.md
+│  └─ Configuración detallada de Cognito, rate limits, grupos
+│
+├─ FASE_1-8_COMPLETADA.md (8 archivos)
+│  └─ Historial de implementación por fases
+│
+└─ scripts/seed-course.py
+   └─ Script para cargar curso demo en DynamoDB
+
+================================================================================
+STATUS DEL PROYECTO
+================================================================================
+
+Completado: 90% (8.35 fases de 9 fases)
+
+✅ FASE 1: Setup Inicial
+✅ FASE 2: DynamoDB Tables
+✅ FASE 3: Lambda tutor-handler
+✅ FASE 4: Lambdas de soporte
+✅ FASE 5: API Gateway
+✅ FASE 6: Integración Frontend
+✅ FASE 7: Admin Panel
+✅ FASE 8 Parte 1: Backend Infrastructure (S3 + Lambdas)
+
+⏳ FASE 8 Parte 2: API Gateway Endpoints (PENDIENTE)
+⏳ FASE 8 Parte 3: Frontend (PENDIENTE)
+
+INFRAESTRUCTURA: 100% Completa y Operativa
+API: 100% Funcional
+Frontend: Requiere integración
+
+================================================================================

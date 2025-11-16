@@ -1,0 +1,9 @@
+# Requirements for admin-handler Lambda
+# Python 3.11
+
+# AWS SDK para Python
+boto3==1.34.162
+botocore==1.34.162
+
+# AWS Lambda Powertools - Observability toolkit
+aws-lambda-powertools==2.32.0

@@ -1,0 +1,318 @@
+# Lambda Functions para CloudAcademy Tutor Backend
+
+# ============================================================================
+# Lambda: tutor-handler
+# ============================================================================
+# Función principal del tutor IA
+# Endpoints: /api/tutor/ask, /api/tutor/validate, /api/tutor/hint
+
+# Primero necesitamos crear el deployment package
+# Esto se hace con un script o manualmente antes de aplicar terraform
+
+# Data source para obtener el ZIP del código
+# NOTA: Los ZIPs deben crearse primero con: ./scripts/package-lambdas.sh
+# El script empaqueta cada lambda incluyendo el módulo shared/
+
+resource "aws_lambda_function" "tutor_handler" {
+  filename         = "${path.module}/../lambdas/tutor-handler.zip"
+  function_name    = "cloudacademy-tutor-handler"
+  role             = aws_iam_role.lambda_tutor_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = filebase64sha256("${path.module}/../lambdas/tutor-handler.zip")
+  runtime          = "python3.11"
+  timeout          = 60  # 60 segundos (Bedrock puede tardar)
+  memory_size      = 512 # 512 MB
+
+  environment {
+    variables = {
+      COURSES_TABLE        = aws_dynamodb_table.courses_catalog.name
+      SESSIONS_TABLE       = aws_dynamodb_table.tutor_sessions.name
+      PROGRESS_TABLE       = aws_dynamodb_table.user_progress.name
+      USAGE_TABLE          = aws_dynamodb_table.user_usage.name
+      BEDROCK_MODEL_ID     = var.bedrock_model_id
+      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+    }
+  }
+
+  tags = {
+    Name        = "cloudacademy-tutor-handler"
+    Description = "Lambda principal del tutor IA con Bedrock"
+  }
+}
+
+# CloudWatch Log Group para tutor-handler
+resource "aws_cloudwatch_log_group" "tutor_handler_logs" {
+  name              = "/aws/lambda/cloudacademy-tutor-handler"
+  retention_in_days = 7 # Retener logs 7 días
+
+  tags = {
+    Name = "tutor-handler-logs"
+  }
+}
+
+# ============================================================================
+# Lambda: courses-handler
+# ============================================================================
+# Endpoints: GET /api/courses, GET /api/courses/{id}, GET /api/courses/{id}/sections/{sectionId}
+
+resource "aws_lambda_function" "courses_handler" {
+  filename         = "${path.module}/../lambdas/courses-handler.zip"
+  function_name    = "cloudacademy-courses-handler"
+  role             = aws_iam_role.lambda_courses_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = filebase64sha256("${path.module}/../lambdas/courses-handler.zip")
+  runtime          = "python3.11"
+  timeout          = 30
+  memory_size      = 256
+
+  environment {
+    variables = {
+      COURSES_TABLE = aws_dynamodb_table.courses_catalog.name
+    }
+  }
+
+  tags = {
+    Name        = "cloudacademy-courses-handler"
+    Description = "Lambda para lectura de cursos y secciones"
+  }
+}
+
+# CloudWatch Log Group para courses-handler
+resource "aws_cloudwatch_log_group" "courses_handler_logs" {
+  name              = "/aws/lambda/cloudacademy-courses-handler"
+  retention_in_days = 7
+
+  tags = {
+    Name = "courses-handler-logs"
+  }
+}
+
+# ============================================================================
+# Lambda: progress-handler
+# ============================================================================
+# Endpoints: GET /api/tutor/progress?course_id=X
+
+
+resource "aws_lambda_function" "progress_handler" {
+  filename         = "${path.module}/../lambdas/progress-handler.zip"
+  function_name    = "cloudacademy-progress-handler"
+  role             = aws_iam_role.lambda_progress_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = filebase64sha256("${path.module}/../lambdas/progress-handler.zip")
+  runtime          = "python3.11"
+  timeout          = 30
+  memory_size      = 256
+
+  environment {
+    variables = {
+      PROGRESS_TABLE = aws_dynamodb_table.user_progress.name
+    }
+  }
+
+  tags = {
+    Name        = "cloudacademy-progress-handler"
+    Description = "Lambda para lectura de progreso de usuarios"
+  }
+}
+
+# CloudWatch Log Group para progress-handler
+resource "aws_cloudwatch_log_group" "progress_handler_logs" {
+  name              = "/aws/lambda/cloudacademy-progress-handler"
+  retention_in_days = 7
+
+  tags = {
+    Name = "progress-handler-logs"
+  }
+}
+
+# ============================================================================
+# Lambda: admin-handler
+# ============================================================================
+# Endpoints: POST/PUT/DELETE /api/admin/courses, /api/admin/courses/{id}
+
+
+resource "aws_lambda_function" "admin_handler" {
+  filename         = "${path.module}/../lambdas/admin-handler.zip"
+  function_name    = "cloudacademy-admin-handler"
+  role             = aws_iam_role.lambda_admin_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = filebase64sha256("${path.module}/../lambdas/admin-handler.zip")
+  runtime          = "python3.11"
+  timeout          = 30
+  memory_size      = 256
+
+  environment {
+    variables = {
+      COURSES_TABLE        = aws_dynamodb_table.courses_catalog.name
+      CATEGORIES_TABLE     = aws_dynamodb_table.categories.name
+      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+    }
+  }
+
+  tags = {
+    Name        = "cloudacademy-admin-handler"
+    Description = "Lambda para operaciones administrativas CRUD de cursos"
+  }
+}
+
+# CloudWatch Log Group para admin-handler
+resource "aws_cloudwatch_log_group" "admin_handler_logs" {
+  name              = "/aws/lambda/cloudacademy-admin-handler"
+  retention_in_days = 7
+
+  tags = {
+    Name = "admin-handler-logs"
+  }
+}
+
+# ============================================================================
+# Lambda: upload-handler
+# ============================================================================
+# Endpoints: POST /api/admin/upload-url, GET /api/admin/images, DELETE /api/admin/images/{key}
+
+
+resource "aws_lambda_function" "upload_handler" {
+  filename         = "${path.module}/../lambdas/upload-handler.zip"
+  function_name    = "cloudacademy-upload-handler"
+  role             = aws_iam_role.lambda_upload_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = filebase64sha256("${path.module}/../lambdas/upload-handler.zip")
+  runtime          = "python3.11"
+  timeout          = 30
+  memory_size      = 256
+
+  environment {
+    variables = {
+      S3_BUCKET            = aws_s3_bucket.course_images.id
+      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+    }
+  }
+
+  tags = {
+    Name        = "cloudacademy-upload-handler"
+    Description = "Lambda para generar presigned URLs y gestionar uploads de imágenes"
+  }
+}
+
+# CloudWatch Log Group para upload-handler
+resource "aws_cloudwatch_log_group" "upload_handler_logs" {
+  name              = "/aws/lambda/cloudacademy-upload-handler"
+  retention_in_days = 7
+
+  tags = {
+    Name = "upload-handler-logs"
+  }
+}
+
+# ============================================================================
+# Lambda: sections-handler
+# ============================================================================
+# Endpoints: POST/PUT/DELETE /api/admin/courses/{id}/sections
+
+
+resource "aws_lambda_function" "sections_handler" {
+  filename         = "${path.module}/../lambdas/sections-handler.zip"
+  function_name    = "cloudacademy-sections-handler"
+  role             = aws_iam_role.lambda_admin_role.arn # Reutiliza el role del admin-handler
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = filebase64sha256("${path.module}/../lambdas/sections-handler.zip")
+  runtime          = "python3.11"
+  timeout          = 30
+  memory_size      = 256
+
+  environment {
+    variables = {
+      COURSES_TABLE        = aws_dynamodb_table.courses_catalog.name
+      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+    }
+  }
+
+  tags = {
+    Name        = "cloudacademy-sections-handler"
+    Description = "Lambda para CRUD de secciones de cursos"
+  }
+}
+
+# CloudWatch Log Group para sections-handler
+resource "aws_cloudwatch_log_group" "sections_handler_logs" {
+  name              = "/aws/lambda/cloudacademy-sections-handler"
+  retention_in_days = 7
+
+  tags = {
+    Name = "sections-handler-logs"
+  }
+}
+
+# ============================================================================
+# Lambda: categories-handler
+# ============================================================================
+# Endpoints: GET/POST/PUT/DELETE /api/categories, GET /api/categories/{id}
+
+
+resource "aws_lambda_function" "categories_handler" {
+  filename         = "${path.module}/../lambdas/categories-handler.zip"
+  function_name    = "cloudacademy-categories-handler"
+  role             = aws_iam_role.lambda_categories_role.arn
+  handler          = "lambda_function.lambda_handler"
+  source_code_hash = filebase64sha256("${path.module}/../lambdas/categories-handler.zip")
+  runtime          = "python3.11"
+  timeout          = 30
+  memory_size      = 256
+
+  environment {
+    variables = {
+      CATEGORIES_TABLE     = aws_dynamodb_table.categories.name
+      COURSES_TABLE        = aws_dynamodb_table.courses_catalog.name
+      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+    }
+  }
+
+  tags = {
+    Name        = "cloudacademy-categories-handler"
+    Description = "Lambda para CRUD de categorías de cursos"
+  }
+}
+
+# CloudWatch Log Group para categories-handler
+resource "aws_cloudwatch_log_group" "categories_handler_logs" {
+  name              = "/aws/lambda/cloudacademy-categories-handler"
+  retention_in_days = 7
+
+  tags = {
+    Name = "categories-handler-logs"
+  }
+}
+
+# ============================================================================
+# Outputs
+# ============================================================================
+
+output "tutor_handler_function_name" {
+  description = "Nombre de la función Lambda del tutor"
+  value       = aws_lambda_function.tutor_handler.function_name
+}
+
+output "tutor_handler_arn" {
+  description = "ARN de la función Lambda del tutor"
+  value       = aws_lambda_function.tutor_handler.arn
+}
+
+output "tutor_handler_invoke_arn" {
+  description = "Invoke ARN para API Gateway"
+  value       = aws_lambda_function.tutor_handler.invoke_arn
+}
+
+output "upload_handler_invoke_arn" {
+  description = "Invoke ARN del upload-handler para API Gateway"
+  value       = aws_lambda_function.upload_handler.invoke_arn
+}
+
+output "sections_handler_invoke_arn" {
+  description = "Invoke ARN del sections-handler para API Gateway"
+  value       = aws_lambda_function.sections_handler.invoke_arn
+}
+
+output "categories_handler_invoke_arn" {
+  description = "Invoke ARN del categories-handler para API Gateway"
+  value       = aws_lambda_function.categories_handler.invoke_arn
+}
